@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Разделитель счетов</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; margin: 0; padding: 20px; color: #333; }
+        .hidden { display: none !important; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        button { padding: 8px 16px; border: none; border-radius: 4px; background: #007bff; color: white; cursor: pointer; font-weight: bold; margin: 4px; transition: 0.2s; }
+        button:hover { background: #0056b3; }
+        button.danger { background: #dc3545; }
+        button.danger:hover { background: #a71d2a; }
+        button.success { background: #28a745; }
+        button.success:hover { background: #1e7e34; }
+        input, select { padding: 8px; margin: 4px; border: 1px solid #ccc; border-radius: 4px; }
+        
+        /* Схема зала */
+        #floor { position: relative; width: 100%; height: 500px; background: #eef2f5; border: 2px dashed #bdc3c7; overflow: hidden; margin-top: 20px; border-radius: 8px; }
+        .table-box { position: absolute; background: #f39c12; border: 2px solid #d35400; display: flex; align-items: center; justify-content: center; cursor: grab; color: white; font-weight: bold; font-size: 18px; box-shadow: 2px 2px 5px rgba(0,0,0,0.2); user-select: none; z-index: 10; }
+        .table-box:active { cursor: grabbing; }
+        .seat { position: absolute; width: 22px; height: 22px; background: #2ecc71; border: 2px solid #27ae60; border-radius: 50%; cursor: pointer; z-index: 20; display: flex; align-items: center; justify-content: center; font-size: 11px; color: white; font-weight: bold; box-shadow: 1px 1px 3px rgba(0,0,0,0.3); }
+        .seat:hover { transform: scale(1.1); }
+        .seat.occupied { background: #e74c3c; border-color: #c0392b; }
+
+        /* Модальные окна */
+        .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
+        .modal-content { background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; }
+        .menu-list { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 15px 0; }
+        .menu-item { display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; padding: 8px; border-radius: 4px; border: 1px solid #eee; }
+        .list-group { margin: 10px 0; padding-left: 20px; }
+        .error-msg { color: #dc3545; margin: 8px 0; font-size: 14px; }
+        .success-msg { color: #28a745; margin: 8px 0; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+    <!-- Экран Регистрации / Входа -->
+    <div id="authScreen" class="card">
+        <h2>Вход в систему</h2>
+        <input type="text" id="authName" placeholder="Ваше ФИО (например: Иванов И.И.)" style="width: 250px;">
+        <button onclick="login()">Войти</button>
+        <hr style="margin: 20px 0;">
+        <h3>Первичная регистрация (Сотрудник)</h3>
+        <button onclick="showRegister()">Зарегистрировать новую учетную запись</button>
+        
+        <div id="registerBlock" class="hidden" style="margin-top: 15px;">
+            <input type="text" id="regName" placeholder="Ваше ФИО">
+            <button onclick="doRegister()">Сохранить учетную запись</button>
+        </div>
+        <p id="authMsg" style="color: red; font-weight: bold;"></p>
+    </div>
+
+    <!-- Главный экран -->
+    <div id="mainScreen" class="hidden">
+        <div class="card">
+            <h2>Сотрудник: <span id="currentUser"></span></h2>
+            <button onclick="logout()">Выйти из системы</button>
+            <button onclick="startEdit()" style="background: #6c757d;">Изменить данные схемы</button>
+            
+            <div id="editPanel" class="hidden" style="margin-top: 15px; padding: 15px; background: #fff3cd; border-radius: 5px; border: 1px solid #ffc107;">
+                <h4>Редактирование схемы</h4>
+                <button onclick="addTable()">+ Добавить стол</button>
+                <button onclick="applyAllSeats()" class="success">Изменить кол-во мест на всех столах</button>
+                <button onclick="saveSchemaEdit()" class="danger">Сохранить изменения (удалить старые данные)</button>
+                <button onclick="cancelEdit()" style="background:#6c757d;">Отмена</button>
+            </div>
+
+            <div id="floor"></div>
+        </div>
+    </div>
+
+    <!-- Универсальное Модальное Окно -->
+    <div id="modal" class="modal hidden">
+        <div class="modal-content" id="modalBody"></div>
+    </div>
+
+    <script>
+        let currentAccountName = null;
+        let accountData = null;
+        let menuData = [];
+        let isEditMode = false;
+        let dragState = null;
+
+        // Инициализация при загрузке
+        window.addEventListener('pywebviewready', async () => {
+            menuData = await window.
